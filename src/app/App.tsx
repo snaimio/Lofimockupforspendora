@@ -1,444 +1,166 @@
 import { useState } from "react";
-import { ChevronLeft, Plus, Trash2, Check, CreditCard } from "lucide-react";
 
-/* ─── Types ─────────────────────────────────────────────────── */
 type Screen = "dashboard" | "add" | "detail";
-type Cycle = "monthly" | "yearly";
-type Category = "Entertainment" | "Productivity" | "Health" | "Finance" | "Other";
+type Sub = { name: string; cost: string; cycle: string; next: string };
 
-interface Sub {
-  id: string;
-  name: string;
-  cost: number;
-  cycle: Cycle;
-  nextDate: string;
-  category: Category;
-  color: string;
-  icon: string;
-}
-
-/* ─── Seed data ──────────────────────────────────────────────── */
-const SEED: Sub[] = [
-  { id: "1", name: "Netflix", cost: 15.99, cycle: "monthly", nextDate: "Jun 10", category: "Entertainment", color: "#E50914", icon: "N" },
-  { id: "2", name: "Spotify", cost: 9.99, cycle: "monthly", nextDate: "Jun 15", category: "Entertainment", color: "#1DB954", icon: "S" },
-  { id: "3", name: "iCloud+", cost: 2.99, cycle: "monthly", nextDate: "Jun 22", category: "Other", color: "#0A84FF", icon: "☁" },
-  { id: "4", name: "ChatGPT Plus", cost: 20.00, cycle: "monthly", nextDate: "Jun 25", category: "Productivity", color: "#10A37F", icon: "G" },
+const SUBSCRIPTIONS: Sub[] = [
+  { name: "Netflix", cost: "$15.99", cycle: "Monthly", next: "Jun 10" },
+  { name: "Spotify", cost: "$9.99", cycle: "Monthly", next: "Jun 15" },
+  { name: "iCloud+", cost: "$2.99", cycle: "Monthly", next: "Jun 22" },
 ];
 
-/* ─── Design tokens (dark app theme) ────────────────────────── */
-const T = {
-  bg: "#07101F",
-  card: "#0F1C30",
-  card2: "#162337",
-  accent: "#6366F1",
-  accent2: "#8B5CF6",
-  accentGrad: "linear-gradient(135deg,#6366F1,#8B5CF6)",
-  text: "#F0F4FF",
-  text2: "#5E7494",
-  text3: "#9DB3CB",
-  border: "rgba(255,255,255,0.07)",
-  danger: "#EF4444",
-  dangerBg: "rgba(239,68,68,0.1)",
-  dangerBorder: "rgba(239,68,68,0.25)",
-  success: "#22C55E",
-  r: "16px",
-  r2: "22px",
-} as const;
-
-/* ─── Helpers ────────────────────────────────────────────────── */
-const CATS: Category[] = ["Entertainment", "Productivity", "Health", "Finance", "Other"];
-const CAT_COLORS: Record<Category, string> = {
-  Entertainment: "#E50914",
-  Productivity:  "#10A37F",
-  Health:        "#22C55E",
-  Finance:       "#F59E0B",
-  Other:         "#6366F1",
-};
-
-function monthly(s: Sub) {
-  return s.cycle === "yearly" ? s.cost / 12 : s.cost;
-}
-
-/* ─── Sub-components ─────────────────────────────────────────── */
-
-function ServiceBadge({ color, icon, size = 42 }: { color: string; icon: string; size?: number }) {
+function Box({ children, className = "", onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) {
   return (
-    <div style={{
-      width: size, height: size,
-      borderRadius: size * 0.3,
-      background: color + "1F",
-      border: `1.5px solid ${color}44`,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      fontSize: size * 0.4, fontWeight: 700, color,
-      flexShrink: 0, userSelect: "none",
-    }}>
-      {icon}
+    <div
+      onClick={onClick}
+      className={`border border-gray-400 bg-gray-100 ${onClick ? "cursor-pointer hover:bg-gray-200 active:bg-gray-300 transition-colors" : ""} ${className}`}
+    >
+      {children}
     </div>
   );
 }
 
-function Row({ label, value, last }: { label: string; value: string; last?: boolean }) {
-  return (
-    <div style={{
-      padding: "13px 18px",
-      display: "flex", justifyContent: "space-between", alignItems: "center",
-      borderBottom: last ? "none" : `1px solid ${T.border}`,
-    }}>
-      <span style={{ fontSize: 13, color: T.text3 }}>{label}</span>
-      <span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{value}</span>
-    </div>
-  );
+function Divider({ dashed = false }: { dashed?: boolean }) {
+  return <div className={`border-t ${dashed ? "border-dashed" : ""} border-gray-300 my-2`} />;
 }
 
-function Pill({
-  active, onClick, children,
-}: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function WireBtn({
+  children,
+  onClick,
+  className = "",
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  className?: string;
+}) {
   return (
-    <button onClick={onClick} style={{
-      flex: 1, padding: "9px 0", borderRadius: 12, fontSize: 13, fontWeight: 600,
-      cursor: "pointer", border: "none", transition: "all 0.2s",
-      background: active ? T.accent : "transparent",
-      color: active ? "#fff" : T.text2,
-    }}>
+    <button
+      onClick={onClick}
+      className={`w-full border-2 border-gray-500 bg-gray-200 py-2.5 text-xs font-mono font-bold text-gray-700 tracking-widest hover:bg-gray-300 active:bg-gray-400 transition-colors ${className}`}
+    >
       {children}
     </button>
   );
 }
 
-function CategoryTag({ cat, active, onClick }: { cat: Category; active: boolean; onClick: () => void }) {
-  return (
-    <button onClick={onClick} style={{
-      padding: "6px 14px", borderRadius: 20, fontSize: 11, fontWeight: 600,
-      cursor: "pointer", transition: "all 0.2s",
-      border: `1px solid ${active ? T.accent + "66" : T.border}`,
-      background: active ? T.accent + "1F" : T.card,
-      color: active ? "#A5B4FC" : T.text2,
-    }}>
-      {cat}
-    </button>
-  );
-}
-
-/* ─── Dashboard Screen ───────────────────────────────────────── */
-function Dashboard({ subs, onNav, onSelect }: {
-  subs: Sub[];
-  onNav: (s: Screen) => void;
-  onSelect: (s: Sub) => void;
-}) {
-  const total = subs.reduce((a, s) => a + monthly(s), 0);
-  const next = [...subs].sort((a, b) => a.nextDate.localeCompare(b.nextDate))[0];
+function DashboardScreen({ onNav }: { onNav: (s: Screen, sub?: Sub) => void }) {
+  const total = SUBSCRIPTIONS.reduce((acc, s) => acc + parseFloat(s.cost.replace("$", "")), 0).toFixed(2);
 
   return (
-    <div style={{ position: "relative", display: "flex", flexDirection: "column", height: "100%", background: T.bg, color: T.text, fontFamily: "Inter, system-ui, sans-serif" }}>
-
-      {/* Scrollable body */}
-      <div style={{ overflowY: "auto", flex: 1, paddingBottom: 80 }}>
-
-        {/* Top bar */}
-        <div style={{ padding: "16px 20px 10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: 10, color: T.text2, textTransform: "uppercase", letterSpacing: "0.12em" }}>May 2025</div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: T.text, marginTop: 1, letterSpacing: "-0.02em" }}>Spendora</div>
-          </div>
-          <div style={{ width: 33, height: 33, borderRadius: 17, background: T.accentGrad, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#fff" }}>SN</div>
-        </div>
-
-        {/* Hero total */}
-        <div style={{ padding: "10px 20px 18px" }}>
-          <div style={{ fontSize: 10, color: T.text2, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 6 }}>Monthly Spend</div>
-          <div style={{ fontSize: 44, fontWeight: 800, lineHeight: 1, letterSpacing: "-0.03em", background: "linear-gradient(135deg,#fff 30%,#a5b4fc 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            ${total.toFixed(2)}
-          </div>
-          <div style={{ fontSize: 11, color: T.text2, marginTop: 7 }}>
-            {subs.length} active subscription{subs.length !== 1 ? "s" : ""} · Updated today
-          </div>
-        </div>
-
-        {/* Next charge spotlight */}
-        {next && (
-          <div
-            style={{ margin: "0 16px 14px", borderRadius: T.r2, padding: "14px 16px", background: "linear-gradient(135deg,rgba(99,102,241,0.18),rgba(139,92,246,0.10))", border: "1px solid rgba(99,102,241,0.28)", cursor: "pointer" }}
-            onClick={() => { onSelect(next); onNav("detail"); }}
-          >
-            <div style={{ fontSize: 9, color: "#A5B4FC", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: 10 }}>Next Charge</div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <ServiceBadge color={next.color} icon={next.icon} size={38} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{next.name}</div>
-                <div style={{ fontSize: 11, color: "#A5B4FC", marginTop: 2 }}>Due {next.nextDate}</div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>${next.cost.toFixed(2)}</div>
-                <div style={{ fontSize: 10, color: "#A5B4FC", marginTop: 1 }}>/{next.cycle === "yearly" ? "yr" : "mo"}</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Subscription list */}
-        <div style={{ padding: "0 16px" }}>
-          <div style={{ fontSize: 10, color: T.text2, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 10 }}>All Subscriptions</div>
-
-          {subs.length === 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "44px 0 20px", gap: 12, textAlign: "center" }}>
-              <div style={{ width: 56, height: 56, borderRadius: 18, background: T.card, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26 }}>📭</div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>No subscriptions yet</div>
-              <div style={{ fontSize: 12, color: T.text2 }}>Tap + to add your first one</div>
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              {subs.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => { onSelect(s); onNav("detail"); }}
-                  style={{ width: "100%", textAlign: "left", background: T.card, border: `1px solid ${T.border}`, borderRadius: T.r2, padding: "13px 14px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", transition: "background 0.15s" }}
-                >
-                  <ServiceBadge color={s.color} icon={s.icon} size={40} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
-                    <div style={{ fontSize: 11, color: T.text2, marginTop: 2 }}>{s.category}</div>
-                  </div>
-                  <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>
-                      ${monthly(s).toFixed(2)}
-                      <span style={{ fontSize: 10, fontWeight: 400, color: T.text2 }}>/mo</span>
-                    </div>
-                    <div style={{ fontSize: 10, color: T.text2, marginTop: 2 }}>Next: {s.nextDate}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+    <div className="flex flex-col h-full font-mono overflow-y-auto">
+      {/* Header */}
+      <div className="border-b-2 border-gray-600 px-4 pt-4 pb-3 text-center">
+        <div className="text-base font-bold text-gray-800 tracking-[0.2em]">[ SPENDORA ]</div>
+        <div className="text-[10px] text-gray-400 tracking-widest mt-0.5">SUBSCRIPTION TRACKER</div>
       </div>
 
-      {/* FAB */}
-      <div style={{ position: "absolute", bottom: 24, right: 20, zIndex: 20 }}>
-        <button
-          onClick={() => onNav("add")}
-          style={{ width: 52, height: 52, borderRadius: 26, background: T.accentGrad, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 28px rgba(99,102,241,0.45)" }}
-        >
-          <Plus color="#fff" size={22} strokeWidth={2.5} />
-        </button>
+      <div className="flex flex-col gap-3 px-4 py-4 flex-1">
+        {/* Total spend */}
+        <Box className="p-4 text-center">
+          <div className="text-[10px] text-gray-500 uppercase tracking-widest">Total Monthly Spend</div>
+          <div className="text-3xl font-bold text-gray-800 mt-1 tracking-tight">${total}</div>
+          <div className="text-[10px] text-gray-400 mt-1">3 active subscriptions</div>
+        </Box>
+
+        <Divider dashed />
+
+        {/* Subscriptions list */}
+        <div className="text-[10px] text-gray-500 uppercase tracking-widest">Subscriptions</div>
+
+        <div className="flex flex-col gap-2">
+          {SUBSCRIPTIONS.map((sub) => (
+            <Box
+              key={sub.name}
+              className="px-3 py-2.5"
+              onClick={() => onNav("detail", sub)}
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <div className="text-sm font-bold text-gray-800">{sub.name}</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5">{sub.cost} / month</div>
+                </div>
+                <div className="text-[10px] text-gray-400 text-right pt-0.5">
+                  Next: {sub.next}
+                </div>
+              </div>
+            </Box>
+          ))}
+        </div>
+
+        <Divider dashed />
+
+        <WireBtn onClick={() => onNav("add")}>[ + ADD SUBSCRIPTION ]</WireBtn>
       </div>
     </div>
   );
 }
 
-/* ─── Add Screen ─────────────────────────────────────────────── */
-function AddSubscription({ onNav, onSave }: {
-  onNav: (s: Screen) => void;
-  onSave: (s: Sub) => void;
-}) {
-  const [name, setName] = useState("");
-  const [cost, setCost] = useState("");
-  const [cycle, setCycle] = useState<Cycle>("monthly");
-  const [category, setCategory] = useState<Category>("Entertainment");
-  const [done, setDone] = useState(false);
-
-  const isValid = name.trim().length > 0 && parseFloat(cost) > 0;
-
-  function save() {
-    if (!isValid) return;
-    setDone(true);
-    setTimeout(() => {
-      onSave({
-        id: Date.now().toString(),
-        name: name.trim(),
-        cost: parseFloat(cost),
-        cycle,
-        nextDate: "Jul 1",
-        category,
-        color: CAT_COLORS[category],
-        icon: name.trim()[0].toUpperCase(),
-      });
-      onNav("dashboard");
-    }, 550);
-  }
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%", background: T.card, border: `1px solid ${T.border}`,
-    borderRadius: T.r, padding: "13px 16px", fontSize: 14, color: T.text,
-    outline: "none", boxSizing: "border-box", fontFamily: "Inter, system-ui, sans-serif",
-  };
-
+function AddScreen({ onNav }: { onNav: (s: Screen) => void }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.bg, color: T.text, fontFamily: "Inter, system-ui, sans-serif" }}>
-
+    <div className="flex flex-col h-full font-mono overflow-y-auto">
       {/* Header */}
-      <div style={{ padding: "14px 20px", display: "flex", alignItems: "center", gap: 10, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
-        <button onClick={() => onNav("dashboard")} style={{ width: 32, height: 32, borderRadius: 10, background: T.card, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ChevronLeft color={T.text3} size={18} />
+      <div className="border-b-2 border-gray-600 px-4 pt-4 pb-3 flex items-center">
+        <button
+          onClick={() => onNav("dashboard")}
+          className="text-[10px] text-gray-500 hover:text-gray-700 transition-colors mr-2 tracking-wider"
+        >
+          ← BACK
         </button>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.text, letterSpacing: "-0.02em" }}>Add Subscription</div>
+        <div className="text-xs font-bold text-gray-800 tracking-[0.15em] flex-1 text-center pr-8">
+          [ ADD SUBSCRIPTION ]
+        </div>
       </div>
 
-      {/* Form */}
-      <div style={{ overflowY: "auto", flex: 1, padding: "20px 18px 32px", display: "flex", flexDirection: "column", gap: 18 }}>
-
-        {/* Name */}
-        <div>
-          <div style={{ fontSize: 10, color: T.text2, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Service Name</div>
-          <input
-            className="dark-input"
-            value={name}
-            onChange={e => setName(e.target.value)}
-            placeholder="e.g. Netflix"
-            style={inputStyle}
-          />
+      <div className="flex flex-col gap-4 px-4 py-4 flex-1">
+        {/* Name field */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] text-gray-500 uppercase tracking-widest">Name</label>
+          <Box className="px-3 py-2.5 bg-white">
+            <div className="text-gray-300 text-xs italic">[ __________________________ ]</div>
+          </Box>
         </div>
 
-        {/* Cost */}
-        <div>
-          <div style={{ fontSize: 10, color: T.text2, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Cost</div>
-          <div style={{ position: "relative" }}>
-            <span style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: T.text3, fontSize: 15, fontWeight: 600, pointerEvents: "none" }}>$</span>
-            <input
-              className="dark-input"
-              type="number"
-              step="0.01"
-              min="0"
-              value={cost}
-              onChange={e => setCost(e.target.value)}
-              placeholder="0.00"
-              style={{ ...inputStyle, paddingLeft: 30 }}
-            />
-          </div>
+        {/* Cost field */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] text-gray-500 uppercase tracking-widest">Cost</label>
+          <Box className="px-3 py-2.5 bg-white">
+            <div className="text-gray-300 text-xs italic">[ $ _______________________ ]</div>
+          </Box>
         </div>
 
         {/* Billing cycle */}
-        <div>
-          <div style={{ fontSize: 10, color: T.text2, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Billing Cycle</div>
-          <div style={{ display: "flex", background: T.card, borderRadius: T.r, padding: 4, border: `1px solid ${T.border}`, gap: 4 }}>
-            <Pill active={cycle === "monthly"} onClick={() => setCycle("monthly")}>Monthly</Pill>
-            <Pill active={cycle === "yearly"} onClick={() => setCycle("yearly")}>Yearly</Pill>
-          </div>
-        </div>
-
-        {/* Category */}
-        <div>
-          <div style={{ fontSize: 10, color: T.text2, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Category</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            {CATS.map(c => (
-              <CategoryTag key={c} cat={c} active={category === c} onClick={() => setCategory(c)} />
-            ))}
-          </div>
-        </div>
-
-        {/* Next billing date (static for prototype) */}
-        <div>
-          <div style={{ fontSize: 10, color: T.text2, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 }}>Next Billing Date</div>
-          <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: T.r, padding: "13px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 14, color: T.text }}>July 1, 2025</span>
-            <span style={{ fontSize: 16 }}>📅</span>
-          </div>
-        </div>
-
-        {/* Preview card */}
-        {isValid && (
-          <div style={{ background: T.card, borderRadius: T.r2, padding: "13px 16px", display: "flex", alignItems: "center", gap: 12, border: `1px solid ${T.border}` }}>
-            <ServiceBadge color={CAT_COLORS[category]} icon={name[0]?.toUpperCase() ?? "?"} size={38} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{name}</div>
-              <div style={{ fontSize: 11, color: T.text2, marginTop: 2 }}>{category} · {cycle}</div>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] text-gray-500 uppercase tracking-widest">Billing Cycle</label>
+          <Box className="px-3 py-3">
+            <div className="flex gap-6 text-xs text-gray-700">
+              <span className="flex items-center gap-1.5">
+                <span className="text-gray-700">◉</span> Monthly
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="text-gray-400">○</span>
+                <span className="text-gray-500">Yearly</span>
+              </span>
             </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>
-              ${cycle === "yearly" ? (parseFloat(cost) / 12).toFixed(2) : parseFloat(cost).toFixed(2)}
-              <span style={{ fontSize: 10, fontWeight: 400, color: T.text2 }}>/mo</span>
-            </div>
-          </div>
-        )}
-
-        {/* Save button */}
-        <button
-          onClick={save}
-          disabled={!isValid}
-          style={{
-            width: "100%", padding: "15px", borderRadius: T.r, border: "none",
-            cursor: isValid ? "pointer" : "not-allowed",
-            fontSize: 15, fontWeight: 700, color: "#fff",
-            background: isValid ? T.accentGrad : T.card2,
-            opacity: isValid ? 1 : 0.5,
-            transition: "all 0.25s",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            boxShadow: isValid ? "0 8px 24px rgba(99,102,241,0.35)" : "none",
-            fontFamily: "Inter, system-ui, sans-serif",
-          }}
-        >
-          {done ? <Check size={18} strokeWidth={2.5} /> : <CreditCard size={17} strokeWidth={2} />}
-          {done ? "Saved!" : "Save Subscription"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Detail Screen ──────────────────────────────────────────── */
-function Detail({ sub, onNav, onDelete }: {
-  sub: Sub;
-  onNav: (s: Screen) => void;
-  onDelete: (id: string) => void;
-}) {
-  const mo = monthly(sub);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: T.bg, color: T.text, fontFamily: "Inter, system-ui, sans-serif" }}>
-
-      {/* Header */}
-      <div style={{ padding: "14px 20px", display: "flex", alignItems: "center", gap: 10, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
-        <button onClick={() => onNav("dashboard")} style={{ width: 32, height: 32, borderRadius: 10, background: T.card, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <ChevronLeft color={T.text3} size={18} />
-        </button>
-        <div style={{ fontSize: 16, fontWeight: 700, color: T.text, letterSpacing: "-0.02em" }}>Detail</div>
-      </div>
-
-      <div style={{ overflowY: "auto", flex: 1 }}>
-
-        {/* Hero card */}
-        <div style={{ margin: "16px 16px 14px", borderRadius: T.r2, padding: "22px 18px", background: `linear-gradient(135deg,${sub.color}1A,${sub.color}0A)`, border: `1px solid ${sub.color}2F` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}>
-            <ServiceBadge color={sub.color} icon={sub.icon} size={52} />
-            <div>
-              <div style={{ fontSize: 22, fontWeight: 800, color: T.text, letterSpacing: "-0.03em" }}>{sub.name}</div>
-              <div style={{ fontSize: 12, color: T.text3, marginTop: 3 }}>{sub.category}</div>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 28 }}>
-            <div>
-              <div style={{ fontSize: 9, color: T.text2, textTransform: "uppercase", letterSpacing: "0.12em" }}>Monthly</div>
-              <div style={{ fontSize: 26, fontWeight: 800, color: T.text, letterSpacing: "-0.03em", marginTop: 3 }}>${mo.toFixed(2)}</div>
-            </div>
-            {sub.cycle === "yearly" && (
-              <div>
-                <div style={{ fontSize: 9, color: T.text2, textTransform: "uppercase", letterSpacing: "0.12em" }}>Yearly</div>
-                <div style={{ fontSize: 26, fontWeight: 800, color: T.text, letterSpacing: "-0.03em", marginTop: 3 }}>${sub.cost.toFixed(2)}</div>
-              </div>
-            )}
-          </div>
+          </Box>
         </div>
 
-        {/* Info rows */}
-        <div style={{ margin: "0 16px 12px", background: T.card, borderRadius: T.r2, border: `1px solid ${T.border}`, overflow: "hidden" }}>
-          <Row label="Billing Cycle" value={sub.cycle.charAt(0).toUpperCase() + sub.cycle.slice(1)} />
-          <Row label="Next Billing" value={`${sub.nextDate}, 2025`} />
-          <Row label="Category" value={sub.category} />
-          <Row label="Monthly Cost" value={`$${mo.toFixed(2)}`} last />
+        {/* Next billing date */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-[10px] text-gray-500 uppercase tracking-widest">Next Billing Date</label>
+          <Box className="px-3 py-2.5 bg-white">
+            <div className="text-gray-300 text-xs italic">[ MM / DD / YYYY __________ ]</div>
+          </Box>
         </div>
 
-        {/* Next charge badge */}
-        <div style={{ margin: "0 16px 16px", background: "rgba(99,102,241,0.10)", borderRadius: T.r, padding: "12px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid rgba(99,102,241,0.2)" }}>
-          <span style={{ fontSize: 12, color: "#A5B4FC", fontWeight: 500 }}>Next charge</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#A5B4FC" }}>{sub.nextDate}, 2025</span>
-        </div>
+        <Divider dashed />
 
-        {/* Delete */}
-        <div style={{ margin: "0 16px 32px" }}>
+        <div className="flex flex-col gap-2 mt-auto">
+          <WireBtn onClick={() => onNav("dashboard")}>[ SAVE ]</WireBtn>
           <button
-            onClick={() => { onDelete(sub.id); onNav("dashboard"); }}
-            style={{ width: "100%", padding: "14px", borderRadius: T.r, border: `1px solid ${T.dangerBorder}`, background: T.dangerBg, cursor: "pointer", fontSize: 14, fontWeight: 700, color: "#F87171", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: "Inter, system-ui, sans-serif" }}
+            onClick={() => onNav("dashboard")}
+            className="text-[10px] text-gray-400 hover:text-gray-600 transition-colors tracking-widest text-center py-1"
           >
-            <Trash2 size={15} color="#F87171" strokeWidth={2.5} />
-            Delete Subscription
+            CANCEL
           </button>
         </div>
       </div>
@@ -446,173 +168,244 @@ function Detail({ sub, onNav, onDelete }: {
   );
 }
 
-/* ─── Phone Frame ────────────────────────────────────────────── */
-function PhoneFrame({ children, label, index, active, onClick }: {
-  children: React.ReactNode;
-  label: string;
-  index: number;
-  active: boolean;
-  onClick: () => void;
-}) {
+function DetailScreen({ sub, onNav }: { sub: Sub; onNav: (s: Screen) => void }) {
+  const rows = [
+    { label: "Cost", value: sub.cost },
+    { label: "Billing", value: sub.cycle },
+    { label: "Next Billing", value: sub.next + ", 2025" },
+    { label: "Category", value: "Entertainment" },
+    { label: "Status", value: "Active" },
+  ];
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-      <div style={{ fontSize: 10, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.2em", fontFamily: "Inter, system-ui, sans-serif" }}>
-        Screen {index} — {label}
+    <div className="flex flex-col h-full font-mono overflow-y-auto">
+      {/* Header */}
+      <div className="border-b-2 border-gray-600 px-4 pt-4 pb-3 flex items-center">
+        <button
+          onClick={() => onNav("dashboard")}
+          className="text-[10px] text-gray-500 hover:text-gray-700 transition-colors mr-2 tracking-wider"
+        >
+          ← BACK
+        </button>
+        <div className="text-xs font-bold text-gray-800 tracking-[0.15em] flex-1 text-center pr-8">
+          [ DETAIL ]
+        </div>
       </div>
 
-      <div
-        onClick={onClick}
-        style={{
-          position: "relative",
-          width: 272, height: 576,
-          borderRadius: 40,
-          border: active ? "2.5px solid #6366F1" : "2.5px solid #1E293B",
-          overflow: "hidden",
-          cursor: "pointer",
-          transition: "all 0.3s cubic-bezier(0.4,0,0.2,1)",
-          boxShadow: active
-            ? "0 0 0 1px rgba(99,102,241,0.25), 0 24px 64px rgba(99,102,241,0.22), 0 8px 24px rgba(0,0,0,0.4)"
-            : "0 8px 32px rgba(0,0,0,0.35)",
-          opacity: active ? 1 : 0.72,
-          transform: active ? "scale(1.01)" : "scale(1)",
-          background: "#07101F",
-        }}
-      >
-        {/* Dynamic island / notch */}
-        <div style={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", width: 64, height: 16, background: "#000", borderRadius: 10, zIndex: 10 }} />
+      <div className="flex flex-col gap-3 px-4 py-4 flex-1">
+        {/* Service name block */}
+        <Box className="p-5 text-center">
+          <div className="text-[10px] text-gray-400 tracking-widest uppercase mb-1">Service</div>
+          <div className="text-2xl font-bold text-gray-800 tracking-wide">{sub.name}</div>
+        </Box>
 
-        {/* Status bar */}
-        <div style={{ height: 40, background: "#07101F", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "flex-end", justifyContent: "space-between", padding: "0 22px 7px" }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "#8896B0", fontFamily: "Inter, system-ui, sans-serif" }}>9:41</span>
-          <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-            {/* Signal bars */}
-            <div style={{ display: "flex", gap: 1.5, alignItems: "flex-end", height: 9 }}>
-              {[3, 5, 7, 9].map((h, i) => (
-                <div key={i} style={{ width: 2.5, height: h, background: i < 3 ? "#fff" : "rgba(255,255,255,0.25)", borderRadius: 1 }} />
-              ))}
+        <Divider dashed />
+
+        {/* Detail rows */}
+        <div className="flex flex-col">
+          {rows.map(({ label, value }) => (
+            <div
+              key={label}
+              className="flex justify-between items-center py-2.5 border-b border-dashed border-gray-200 last:border-0"
+            >
+              <span className="text-[10px] text-gray-400 uppercase tracking-widest">{label}</span>
+              <span className="text-xs font-bold text-gray-700">{value}</span>
             </div>
-            {/* WiFi icon simplified */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 1, alignItems: "center" }}>
-              {[8, 5.5, 3].map((w, i) => (
-                <div key={i} style={{ width: w, height: 1.5, background: i === 0 ? "#fff" : "rgba(255,255,255,0.4)", borderRadius: 1 }} />
-              ))}
-            </div>
-            {/* Battery */}
-            <div style={{ width: 16, height: 8, border: "1.5px solid rgba(255,255,255,0.4)", borderRadius: 2.5, position: "relative", display: "flex", alignItems: "center", padding: "1px" }}>
-              <div style={{ position: "absolute", right: -3.5, top: "50%", transform: "translateY(-50%)", width: 2, height: 4, background: "rgba(255,255,255,0.35)", borderRadius: 1 }} />
-              <div style={{ width: "72%", height: "100%", background: "#22C55E", borderRadius: 1.5 }} />
-            </div>
-          </div>
+          ))}
         </div>
 
-        {/* Screen */}
-        <div style={{ height: "calc(100% - 40px)", overflow: "hidden", position: "relative" }}>
-          {children}
-        </div>
+        <Divider dashed />
 
-        {/* Home indicator */}
-        <div style={{ position: "absolute", bottom: 7, left: "50%", transform: "translateX(-50%)", width: 68, height: 3.5, background: "rgba(255,255,255,0.2)", borderRadius: 2 }} />
+        {/* Edit placeholder */}
+        <Box className="px-3 py-2.5 cursor-pointer hover:bg-gray-200 transition-colors text-center">
+          <span className="text-[10px] text-gray-500 tracking-widest">[ EDIT ]</span>
+        </Box>
+
+        <WireBtn
+          className="border-gray-600"
+          onClick={() => onNav("dashboard")}
+        >
+          [ DELETE SUBSCRIPTION ]
+        </WireBtn>
       </div>
     </div>
   );
 }
 
-/* ─── App root ───────────────────────────────────────────────── */
+function PhoneShell({
+  label,
+  screenIndex,
+  active,
+  children,
+  onClick,
+}: {
+  label: string;
+  screenIndex: number;
+  active: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3">
+      {/* Screen label */}
+      <div className="font-mono text-[10px] text-gray-400 uppercase tracking-[0.2em]">
+        Screen {screenIndex} — {label}
+      </div>
+
+      {/* Phone frame */}
+      <div
+        onClick={onClick}
+        className={`relative border-[3px] rounded-[2rem] overflow-hidden transition-all cursor-pointer ${
+          active ? "border-gray-700 shadow-lg shadow-gray-300" : "border-gray-300 opacity-70 hover:opacity-90"
+        }`}
+        style={{ width: 260, height: 560 }}
+      >
+        {/* Notch */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-4 bg-gray-300 rounded-b-xl z-10" />
+
+        {/* Status bar */}
+        <div className="bg-gray-100 border-b border-gray-300 h-8 flex items-center justify-between px-4 pt-2">
+          <span className="text-[8px] font-mono text-gray-500">9:41</span>
+          <div className="flex items-center gap-1">
+            <div className="flex gap-px items-end h-2">
+              {[2, 3, 4, 5].map((h, i) => (
+                <div key={i} className="w-0.5 bg-gray-400 rounded-sm" style={{ height: h }} />
+              ))}
+            </div>
+            <div className="w-3 h-1.5 border border-gray-400 rounded-sm relative">
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-0.5 w-0.5 h-1 bg-gray-400 rounded-r" />
+              <div className="h-full w-2/3 bg-gray-400 rounded-sm" />
+            </div>
+          </div>
+        </div>
+
+        {/* Screen content */}
+        <div className="bg-white" style={{ height: "calc(100% - 56px)" }}>
+          {children}
+        </div>
+
+        {/* Home indicator */}
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-14 h-1 bg-gray-400 rounded-full" />
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
-  const [subs, setSubs] = useState<Sub[]>(SEED);
-  const [active, setActive] = useState<Screen>("dashboard");
-  const [selected, setSelected] = useState<Sub>(SEED[0]);
+  const [activeScreen, setActiveScreen] = useState<Screen>("dashboard");
+  const [selectedSub, setSelectedSub] = useState<Sub>(SUBSCRIPTIONS[0]);
 
-  function handleNav(s: Screen) { setActive(s); }
-  function handleSelect(s: Sub) { setSelected(s); }
-  function handleSave(s: Sub) { setSubs(prev => [...prev, s]); }
-  function handleDelete(id: string) { setSubs(prev => prev.filter(s => s.id !== id)); }
+  function handleNav(screen: Screen, sub?: Sub) {
+    if (sub) setSelectedSub(sub);
+    setActiveScreen(screen);
+  }
 
-  const screens: { id: Screen; label: string }[] = [
-    { id: "dashboard", label: "Dashboard" },
-    { id: "add", label: "Add" },
-    { id: "detail", label: "Detail" },
-  ];
+  const screenLabels: Record<Screen, string> = {
+    dashboard: "Dashboard",
+    add: "Add Subscription",
+    detail: "Detail View",
+  };
 
   return (
-    <>
-      {/* Placeholder style for dark inputs */}
-      <style>{`
-        .dark-input::placeholder { color: #374B64; }
-        .dark-input { caret-color: #6366F1; }
-        .dark-input:focus { border-color: rgba(99,102,241,0.5) !important; }
-        * { box-sizing: border-box; }
-      `}</style>
-
-      <div style={{ minHeight: "100vh", background: "#EEF2F8", fontFamily: "Inter, system-ui, sans-serif", display: "flex", flexDirection: "column" }}>
-
-        {/* Page header */}
-        <div style={{ background: "#fff", borderBottom: "1px solid #E2E8F0", padding: "18px 40px" }}>
-          <div style={{ maxWidth: 1040, margin: "0 auto" }}>
-            <div style={{ fontSize: 10, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.2em", marginBottom: 4 }}>Hi-Fi Prototype</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#0A1628", letterSpacing: "-0.03em" }}>Spendora — Subscription Tracker</div>
-            <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 3 }}>3 screens · Mobile (390×844) · Dark theme · Fully interactive — click phones or tap cards to navigate</div>
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Top bar */}
+      <div className="border-b-2 border-gray-300 bg-white px-8 py-5">
+        <div className="max-w-5xl mx-auto">
+          <div className="font-mono text-[10px] text-gray-400 uppercase tracking-[0.25em] mb-1">
+            Lo-Fi Wireframe · Week 1
           </div>
-        </div>
-
-        {/* ── Desktop: 3 phones side by side ── */}
-        <div className="hidden lg:flex" style={{ flex: 1, justifyContent: "center", alignItems: "center", gap: 28, padding: "52px 40px", flexWrap: "wrap" }}>
-
-          <PhoneFrame label="Dashboard" index={1} active={active === "dashboard"} onClick={() => setActive("dashboard")}>
-            <Dashboard subs={subs} onNav={handleNav} onSelect={handleSelect} />
-          </PhoneFrame>
-
-          <div style={{ color: "#CBD5E1", fontSize: 22, fontWeight: 300, userSelect: "none" }}>→</div>
-
-          <PhoneFrame label="Add Subscription" index={2} active={active === "add"} onClick={() => setActive("add")}>
-            <AddSubscription onNav={handleNav} onSave={handleSave} />
-          </PhoneFrame>
-
-          <div style={{ color: "#CBD5E1", fontSize: 22, fontWeight: 300, userSelect: "none" }}>→</div>
-
-          <PhoneFrame label="Detail View" index={3} active={active === "detail"} onClick={() => setActive("detail")}>
-            <Detail sub={selected} onNav={handleNav} onDelete={handleDelete} />
-          </PhoneFrame>
-        </div>
-
-        {/* ── Mobile: tabs + single phone ── */}
-        <div className="lg:hidden" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 20, padding: "28px 20px" }}>
-          <div style={{ display: "flex", gap: 6, background: "#fff", borderRadius: 14, padding: 4, boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
-            {screens.map((s, i) => (
-              <button
-                key={s.id}
-                onClick={() => setActive(s.id)}
-                style={{ padding: "8px 14px", borderRadius: 10, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", transition: "all 0.2s", background: active === s.id ? "#6366F1" : "transparent", color: active === s.id ? "#fff" : "#64748B" }}
-              >
-                {i + 1}. {s.label}
-              </button>
-            ))}
-          </div>
-
-          <PhoneFrame
-            label={screens.find(s => s.id === active)?.label ?? ""}
-            index={screens.findIndex(s => s.id === active) + 1}
-            active
-            onClick={() => {}}
-          >
-            {active === "dashboard" && <Dashboard subs={subs} onNav={handleNav} onSelect={handleSelect} />}
-            {active === "add" && <AddSubscription onNav={handleNav} onSave={handleSave} />}
-            {active === "detail" && <Detail sub={selected} onNav={handleNav} onDelete={handleDelete} />}
-          </PhoneFrame>
-        </div>
-
-        {/* Legend bar */}
-        <div style={{ background: "#fff", borderTop: "1px solid #E2E8F0", padding: "12px 40px" }}>
-          <div style={{ maxWidth: 1040, margin: "0 auto", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
-            <div style={{ fontSize: 10, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.14em" }}>
-              Tap subscription cards → Detail · Tap + → Add · Back arrows → Dashboard
-            </div>
-            <div style={{ fontSize: 10, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.14em" }}>
-              Dark Navy · Indigo · Inter · Spendora v1
-            </div>
+          <h1 className="font-mono text-xl font-bold text-gray-700 tracking-wider">
+            Spendora — Subscription Tracker
+          </h1>
+          <div className="font-mono text-[10px] text-gray-400 mt-1">
+            Mobile (390 × 844) · 3 screens · Grayscale
           </div>
         </div>
       </div>
-    </>
+
+      {/* Desktop: all 3 phones side by side */}
+      <div className="hidden lg:flex flex-1 items-center justify-center gap-10 py-12 px-8">
+        <PhoneShell
+          label="Dashboard"
+          screenIndex={1}
+          active={activeScreen === "dashboard"}
+          onClick={() => setActiveScreen("dashboard")}
+        >
+          <DashboardScreen onNav={handleNav} />
+        </PhoneShell>
+
+        {/* Arrow connector */}
+        <div className="flex flex-col items-center gap-1 text-gray-300 font-mono text-xs">
+          <div className="w-px h-8 bg-gray-200" />
+          <span>→</span>
+          <div className="w-px h-8 bg-gray-200" />
+        </div>
+
+        <PhoneShell
+          label="Add Subscription"
+          screenIndex={2}
+          active={activeScreen === "add"}
+          onClick={() => setActiveScreen("add")}
+        >
+          <AddScreen onNav={handleNav} />
+        </PhoneShell>
+
+        <div className="flex flex-col items-center gap-1 text-gray-300 font-mono text-xs">
+          <div className="w-px h-8 bg-gray-200" />
+          <span>→</span>
+          <div className="w-px h-8 bg-gray-200" />
+        </div>
+
+        <PhoneShell
+          label="Detail View"
+          screenIndex={3}
+          active={activeScreen === "detail"}
+          onClick={() => setActiveScreen("detail")}
+        >
+          <DetailScreen sub={selectedSub} onNav={handleNav} />
+        </PhoneShell>
+      </div>
+
+      {/* Mobile: one phone + screen tabs */}
+      <div className="lg:hidden flex flex-col flex-1 items-center gap-5 py-8 px-4">
+        <div className="flex gap-1">
+          {(["dashboard", "add", "detail"] as Screen[]).map((s, i) => (
+            <button
+              key={s}
+              onClick={() => setActiveScreen(s)}
+              className={`px-3 py-1.5 text-[10px] font-mono border tracking-widest transition-colors ${
+                activeScreen === s
+                  ? "border-gray-700 bg-gray-700 text-white"
+                  : "border-gray-300 text-gray-500 hover:border-gray-500"
+              }`}
+            >
+              {i + 1}
+            </button>
+          ))}
+        </div>
+
+        <PhoneShell
+          label={screenLabels[activeScreen]}
+          screenIndex={["dashboard", "add", "detail"].indexOf(activeScreen) + 1}
+          active
+          onClick={() => {}}
+        >
+          {activeScreen === "dashboard" && <DashboardScreen onNav={handleNav} />}
+          {activeScreen === "add" && <AddScreen onNav={handleNav} />}
+          {activeScreen === "detail" && <DetailScreen sub={selectedSub} onNav={handleNav} />}
+        </PhoneShell>
+      </div>
+
+      {/* Legend bar */}
+      <div className="border-t border-gray-200 bg-white py-3 px-8">
+        <div className="max-w-5xl mx-auto flex flex-wrap gap-x-8 gap-y-1 font-mono text-[10px] text-gray-400 uppercase tracking-widest">
+          <span>▣  Card / container</span>
+          <span>- - -  Divider</span>
+          <span>[ ]  Button / input field</span>
+          <span>◉ / ○  Radio option</span>
+          <span>Click phones to focus</span>
+        </div>
+      </div>
+    </div>
   );
 }
